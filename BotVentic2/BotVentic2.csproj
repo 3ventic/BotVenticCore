@@ -8,9 +8,6 @@
     <EmbeddedResource Include="**\*.resx" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="README.md" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="Discord.Net" Version="1.0.0-rc-00546" />
     <PackageReference Include="Microsoft.NETCore.App" Version="1.1.0" />
   </ItemGroup>
