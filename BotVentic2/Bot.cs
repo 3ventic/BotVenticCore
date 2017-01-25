@@ -362,7 +362,7 @@ namespace BotVentic2
                     }
                     break;
                 case "!source":
-                    reply = "https://github.com/3ventic/BotVentic";
+                    reply = "https://github.com/3ventic/BotVenticCore";
                     break;
                 case "!frozen":
                     if (words.Length >= 2 && words[1] != "pizza")
