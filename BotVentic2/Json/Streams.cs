@@ -22,6 +22,9 @@ namespace BotVentic2.Json
 
         [JsonProperty("created_at")]
         public DateTime Registered { get; set; }
+
+        [JsonProperty("logo")]
+        public string Logo { get; set; }
     }
 
     class Stream

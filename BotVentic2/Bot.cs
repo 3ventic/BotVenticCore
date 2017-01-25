@@ -1,7 +1,6 @@
 ﻿using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using System.Collections.Concurrent;
@@ -23,6 +22,13 @@ namespace BotVentic2
 
         private List<EmoteInfo> _emotes = new List<EmoteInfo>();
         private string _bttvTemplate = "";
+
+        private EmbedAuthorBuilder _embedAuthor = new EmbedAuthorBuilder()
+        {
+            IconUrl = "https://i.3v.fi/raw/3logo.png",
+            Name = "3v.fi",
+            Url = "https://3v.fi/"
+        };
 
         private string InviteUrl => $"https://discordapp.com/oauth2/authorize?client_id={_clientid}&scope=bot&permissions=19456";
 
@@ -66,19 +72,25 @@ namespace BotVentic2
             {
                 Console.WriteLine($"[Modify] [{message.Channel.Id}:{message.Channel.Name}] <{message.Author.Id}> {message.Author.Username}: {message.Content}");
                 string[] words = message.Content.Split(' ');
-                string reply = await HandleCommandsAsync(words) ?? HandleEmotesAndConversions(words);
-                if (reply != null)
+                (string reply, Embed eReply) = await HandleCommandsAsync(words);
+                if (reply == null && eReply == null)
+                {
+                    (reply, eReply) = HandleEmotesAndConversions(words);
+                }
+
+                if (reply != null || eReply != null)
                 {
                     IMessage botMessage = GetExistingBotReplyOrNull(message.Id);
                     if (botMessage == null)
                     {
-                        await SendReplyAsync(message, reply);
+                        await SendReplyAsync(message, reply, eReply);
                     }
                     else if (botMessage is IUserMessage botMsg)
                     {
                         await botMsg.ModifyAsync((msgProps) =>
                         {
                             msgProps.Content = reply;
+                            msgProps.Embed = eReply;
                         });
                     }
                 }
@@ -107,22 +119,28 @@ namespace BotVentic2
                 else
                 {
                     string[] words = message.Content.Split(' ');
-                    string reply = await HandleCommandsAsync(words) ?? HandleEmotesAndConversions(words);
-                    if (reply != null)
+                    (string reply, Embed eReply) = await HandleCommandsAsync(words);
+                    if (reply == null && eReply == null)
                     {
-                        await SendReplyAsync(message, reply);
+                        (reply, eReply) = HandleEmotesAndConversions(words);
+                    }
+
+                    if (reply != null || eReply != null)
+                    {
+                        await SendReplyAsync(message, reply, eReply);
                     }
                 }
             }
         }
 
-        private async Task SendReplyAsync(SocketMessage message, string reply)
+        private async Task SendReplyAsync(SocketMessage message, string reply, Embed embed = null)
         {
             try
             {
                 _lastHandledMessageOnChannel[message.Channel.Id] = message.Id;
-                RestUserMessage x = await message.Channel.SendMessageAsync(reply);
+                RestUserMessage x = await message.Channel.SendMessageAsync(NullToEmpty(reply), embed: embed);
                 AddBotReply(x, message);
+                Console.WriteLine($"[Sent] [{x.Channel.Id}:{x.Channel.Name}] <{x.Author.Id}> {x.Author.Username}: {x.Content}");
             }
             catch (Exception ex)
             {
@@ -130,9 +148,10 @@ namespace BotVentic2
             }
         }
 
-        private string HandleEmotesAndConversions(string[] words)
+        private (string, Embed) HandleEmotesAndConversions(string[] words)
         {
             string reply = null;
+            Embed eReply = null;
             for (int i = words.Length - 1; i >= 0; --i)
             {
                 string word = words[i];
@@ -140,12 +159,12 @@ namespace BotVentic2
                 if (word.StartsWith("#"))
                 {
                     string code = word.Substring(1, word.Length - 1);
-                    found = IsWordEmote(code, ref reply);
+                    (found, eReply) = IsWordEmote(code);
                 }
                 else if (word.StartsWith(":") && word.EndsWith(":") && word.Length > 2)
                 {
                     string code = word.Substring(1, word.Length - 2);
-                    found = IsWordEmote(code, ref reply, false);
+                    (found, eReply) = IsWordEmote(code, false);
                 }
                 if (found)
                     break;
@@ -157,7 +176,11 @@ namespace BotVentic2
                         {
                             if (int.TryParse(words[i - 1], out int celsius))
                             {
-                                reply = celsius + " \u00b0C = " + (celsius * 9 / 5 + 32) + " \u00b0F";
+                                eReply = new EmbedBuilder()
+                                {
+                                    Description = celsius + " \u00b0C = " + (celsius * 9 / 5 + 32) + " \u00b0F",
+                                    Color = new Color(255, 140, 0)
+                                };
                             }
                         }
                         break;
@@ -166,22 +189,27 @@ namespace BotVentic2
                         {
                             if (int.TryParse(words[i - 1], out int fahrenheit))
                             {
-                                reply = fahrenheit + " \u00b0F = " + ((fahrenheit - 32) * 5 / 9) + " \u00b0C";
+                                eReply = new EmbedBuilder()
+                                {
+                                    Description = fahrenheit + " \u00b0F = " + ((fahrenheit - 32) * 5 / 9) + " \u00b0C",
+                                    Color = new Color(255, 140, 0)
+                                };
                             }
                         }
                         break;
                 }
             }
 
-            return reply;
+            return (reply, eReply);
         }
 
 
-        private bool IsWordEmote(string code, ref string reply, bool caseSensitive = true)
+        private (bool, Embed) IsWordEmote(string code, bool caseSensitive = true)
         {
             Func<string, string, bool> emoteComparer = (first, second) => { return caseSensitive ? (first == second) : (first.ToLower() == second.ToLower()); };
             bool found = false;
             int emoteset = -2;
+            Embed eReply = null;
 
             foreach (var emote in _emotes)
             {
@@ -189,13 +217,19 @@ namespace BotVentic2
                 {
                     if (emote.EmoteSet == 0 || emote.EmoteSet == 457)
                     {
-                        reply = GetEmoteUrl(emote);
+                        eReply = new EmbedBuilder()
+                        {
+                            ImageUrl = GetEmoteUrl(emote)
+                        };
                         found = true;
                         break;
                     }
                     else if (emote.EmoteSet > emoteset)
                     {
-                        reply = GetEmoteUrl(emote);
+                        eReply = new EmbedBuilder()
+                        {
+                            ImageUrl = GetEmoteUrl(emote)
+                        };
                         found = true;
                         emoteset = emote.EmoteSet;
                     }
@@ -209,20 +243,26 @@ namespace BotVentic2
                     {
                         if (emote.EmoteSet == 0 || emote.EmoteSet == 457)
                         {
-                            reply = GetEmoteUrl(emote);
+                            eReply = new EmbedBuilder()
+                            {
+                                ImageUrl = GetEmoteUrl(emote)
+                            };
                             found = true;
                             break;
                         }
                         else if (emote.EmoteSet > emoteset)
                         {
-                            reply = GetEmoteUrl(emote);
+                            eReply = new EmbedBuilder()
+                            {
+                                ImageUrl = GetEmoteUrl(emote)
+                            };
                             found = true;
                             emoteset = emote.EmoteSet;
                         }
                     }
                 }
             }
-            return found;
+            return (found, eReply);
         }
 
         private string GetEmoteUrl(EmoteInfo emote_info)
@@ -231,25 +271,26 @@ namespace BotVentic2
             switch (emote_info.Type)
             {
                 case EmoteType.Twitch:
-                    reply = "http://emote.3v.fi/2.0/" + emote_info.Id + ".png";
+                    reply = $"https://static-cdn.jtvnw.net/emoticons/v1/{emote_info.Id}/2.0";
                     break;
                 case EmoteType.Bttv:
                     reply = "https:" + _bttvTemplate.Replace("{{id}}", emote_info.Id).Replace("{{image}}", "2x");
                     break;
                 case EmoteType.Ffz:
-                    reply = "http://cdn.frankerfacez.com/emoticon/" + emote_info.Id + "/2";
+                    reply = $"http://cdn.frankerfacez.com/emoticon/{emote_info.Id}/2";
                     break;
             }
 
             return reply;
         }
 
-        private async Task<string> HandleCommandsAsync(string[] words)
+        private async Task<(string, Embed)> HandleCommandsAsync(string[] words)
         {
             if (words == null || words.Length < 0)
-                return "An error occurred.";
+                return ("An error occurred.", null);
 
             string reply = null;
+            Embed eReply = null;
             switch (words[0])
             {
                 case "!stream":
@@ -263,17 +304,27 @@ namespace BotVentic2
                             {
                                 if (streams.Stream == null)
                                 {
-                                    reply = "The channel is currently *offline*";
+                                    eReply = new EmbedBuilder()
+                                    {
+                                        Title = Regex.Split(words[1], @"\W")[0],
+                                        Description = "*Offline*",
+                                        Color = Colors.Red
+                                    };
                                 }
                                 else
                                 {
                                     long ticks = DateTime.UtcNow.Ticks - streams.Stream.CreatedAt.Ticks;
                                     TimeSpan ts = new TimeSpan(ticks);
-                                    reply = "**[" + NullToEmpty(streams.Stream.Channel.DisplayName) + "]**" + (streams.Stream.Channel.IsPartner ? @"\*" : "") + " " + (streams.Stream.IsPlaylist ? "(Playlist)" : "")
-                                        + "\n**Title**: " + NullToEmpty(streams.Stream.Channel.Status).Replace("*", @"\*")
-                                        + "\n**Game:** " + NullToEmpty(streams.Stream.Game) + "\n**Viewers**: " + streams.Stream.Viewers
-                                        + "\n**Uptime**: " + ts.ToString(@"d' day" + (ts.Days == 1 ? "" : "s") + @" 'hh\:mm\:ss")
-                                        + "\n**Quality**: " + streams.Stream.VideoHeight + "p" + Math.Ceiling(streams.Stream.FramesPerSecond);
+                                    string name = streams.Stream.Channel.DisplayName ?? words[1];
+                                    eReply = CreateEmbedWithFields(new EmbedAuthorBuilder() { IconUrl = streams.Stream.Channel.Logo, Name = name, Url = streams.Stream.Channel.Url }, fields: new string[][] {
+                                        new string[] { "Name", name },
+                                        new string[] { "Partner", streams.Stream.Channel.IsPartner ? ":white_check_mark:" : ":white_large_square:" },
+                                        new string[] { "Title", streams.Stream.Channel.Status ?? "" },
+                                        new string[] { "Game", streams.Stream.Game ?? "" },
+                                        new string[] { "Viewers", streams.Stream.Viewers.ToString() },
+                                        new string[] { "Quality", streams.Stream.VideoHeight + "p" + Math.Round(streams.Stream.FramesPerSecond) },
+                                        new string[] { "Uptime", ts.ToString(@"d' day" + (ts.Days == 1 ? "" : "s") + @" 'hh\:mm\:ss") }
+                                    });
                                 }
                             }
                         }
@@ -292,11 +343,16 @@ namespace BotVentic2
                             var channel = JsonConvert.DeserializeObject<Json.Channel>(json);
                             if (channel != null && channel.DisplayName != null)
                             {
-                                reply = "**[" + NullToEmpty(channel.DisplayName) + "]**"
-                                    + "\n**Partner**: " + (channel.IsPartner ? "Yes" : "No")
-                                    + "\n**Title**: " + NullToEmpty(channel.Status).Replace("*", @"\*")
-                                    + "\n**Registered**: " + NullToEmpty(channel.Registered.ToString("yyyy-MM-dd HH:mm")) + " UTC"
-                                    + "\n**Followers**: " + channel.Followers;
+                                var registeredFor = new TimeSpan(DateTime.UtcNow.Ticks - channel.Registered.Ticks);
+                                int years = (int)registeredFor.TotalDays / 365;
+                                int days = (int)registeredFor.TotalDays % 365;
+                                eReply = CreateEmbedWithFields(new EmbedAuthorBuilder() { IconUrl = channel.Logo, Name = channel.DisplayName ?? words[1], Url = channel.Url }, color: Colors.Blue, fields: new string[][]
+                                {
+                                    new string[] { "Partner", channel.IsPartner ? ":white_check_mark:" : ":white_large_square:" },
+                                    new string[] { "Title", channel.Status ?? "" },
+                                    new string[] { "Registered", $"{channel.Registered:yyyy-MM-dd HH:mm} UTC; {(years > 0 ? years + " years, " : "")}{days} days ago" },
+                                    new string[] { "Followers", channel.Followers.ToString() }
+                                });
                             }
                         }
                     }
@@ -324,11 +380,17 @@ namespace BotVentic2
                     }
                     try
                     {
-                        reply = $"Connected via `{_client.ShardId}`\n";
-                        reply += $"Memory Usage is {Math.Ceiling(System.Diagnostics.Process.GetCurrentProcess().WorkingSet64 / 1024.0)} KB\n";
-                        reply += $"Serving {users} users on {_client.Guilds.Count} servers.\n";
-                        reply += $"Uptime {(DateTime.UtcNow - _startedAt).ToString(@"d\ \d\a\y\s\,\ h\ \h\o\u\r\s")}\n";
-                        reply += "Available commands: `!bot` `!frozen pizza` `!foodporn` `!source` `!stream <Twitch channel name>` `!channel <Twitch channel name>`";
+                        var botProcess = System.Diagnostics.Process.GetCurrentProcess();
+                        reply = "Available commands: `!bot` `!frozen pizza` `!foodporn` `!source` `!stream <Twitch channel name>` `!channel <Twitch channel name>`";
+                        eReply = CreateEmbedWithFields(_embedAuthor, color: Colors.Blue, fields: new string[][]
+                        {
+                            new string[] { "RAM Usage GC", $"{Math.Ceiling(GC.GetTotalMemory(false) / 1024.0)} KB" },
+                            new string[] { "RAM Usage Working Set", $"{Math.Ceiling(botProcess.WorkingSet64 / 1024.0)} KB" },
+                            new string[] { "RAM Usage Paged", $"{Math.Ceiling(botProcess.PagedMemorySize64 / 1024.0)} KB" },
+                            new string[] { "Uptime", $"{(DateTime.UtcNow - _startedAt).ToString(@"d\ \d\a\y\s\,\ h\ \h\o\u\r\s")}" },
+                            new string[] { "Users", users.ToString() },
+                            new string[] { "Guilds", _client.Guilds.Count.ToString() }
+                        });
                     }
                     catch (Exception ex) when (ex is ArgumentNullException || ex is OverflowException || ex is PlatformNotSupportedException)
                     {
@@ -353,9 +415,11 @@ namespace BotVentic2
                         Console.WriteLine(ex.ToString());
                     }
                     break;
+                default:
+                    break;
             }
 
-            return reply;
+            return (reply, eReply);
         }
 
         private void AddBotReply(IUserMessage bot, SocketMessage user)
@@ -471,6 +535,26 @@ namespace BotVentic2
                     }
                 }
             }
+        }
+
+        private Embed CreateEmbedWithFields(EmbedAuthorBuilder author = null, string imageUrl = null, Color color = default(Color), params string[][] fields)
+        {
+            var e = new EmbedBuilder()
+            {
+                Author = author,
+                ImageUrl = imageUrl,
+                Color = color
+            };
+            foreach (var fieldcells in fields)
+            {
+                e.AddField(field =>
+                {
+                    field.Name = fieldcells[0];
+                    field.Value = fieldcells[1];
+                    field.IsInline = true;
+                });
+            }
+            return e.Build();
         }
 
         private bool IsMessageLastRepliedTo(ulong channelId, ulong messageId) => _lastHandledMessageOnChannel.TryGetValue(channelId, out ulong lastMessageId) && lastMessageId == messageId;

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BotVentic2": {
+      "commandName": "Project",
+      "commandLineArgs": "asd"
+    }
+  }
+}

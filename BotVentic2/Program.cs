@@ -38,6 +38,7 @@ class Program
                 if (includeClientId)
                 {
                     client.DefaultRequestHeaders.Add("Client-ID", "4wck2d3bifbikv779pnez14jujeyash");
+                    client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.twitchtv.v4+json");
                     client.Timeout = TimeSpan.FromSeconds(60);
                     result = await client.GetStringAsync(uri);
                 }
