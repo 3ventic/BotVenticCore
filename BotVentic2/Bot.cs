@@ -316,7 +316,7 @@ namespace BotVentic2
                                     long ticks = DateTime.UtcNow.Ticks - streams.Stream.CreatedAt.Ticks;
                                     TimeSpan ts = new TimeSpan(ticks);
                                     string name = streams.Stream.Channel.DisplayName ?? words[1];
-                                    eReply = CreateEmbedWithFields(new EmbedAuthorBuilder() { IconUrl = streams.Stream.Channel.Logo, Name = name, Url = streams.Stream.Channel.Url }, fields: new string[][] {
+                                    eReply = CreateEmbedWithFields(new EmbedAuthorBuilder() { IconUrl = streams.Stream.Channel.Logo, Name = name, Url = streams.Stream.Channel.Url }, color: Colors.Green, fields: new string[][] {
                                         new string[] { "Name", name },
                                         new string[] { "Partner", streams.Stream.Channel.IsPartner ? ":white_check_mark:" : ":white_large_square:" },
                                         new string[] { "Title", streams.Stream.Channel.Status ?? "" },
