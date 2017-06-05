@@ -62,13 +62,13 @@ namespace BotVentic2
             _client.MessageDeleted += Client_MessageDeletedAsync;
 
             await _client.LoginAsync(TokenType.Bot, _token);
-            await _client.ConnectAsync();
+            await _client.StartAsync();
             await Task.Delay(-1);
         }
 
-        internal async Task QuitAsync() => await _client.DisconnectAsync();
+        internal async Task QuitAsync() => await _client.StopAsync();
 
-        private async Task Client_MessageUpdatedAsync(Optional<SocketMessage> oldMessage, SocketMessage message)
+        private async Task Client_MessageUpdatedAsync(Cacheable<IMessage, ulong> oldMessage, SocketMessage message, ISocketMessageChannel channel)
         {
             if (!message.Author.IsBot && message.Channel.Name[0] != '@')
             {
@@ -99,8 +99,9 @@ namespace BotVentic2
             }
         }
 
-        private async Task Client_MessageDeletedAsync(ulong messageId, Optional<SocketMessage> message)
+        private async Task Client_MessageDeletedAsync(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
         {
+            ulong messageId = (await message.GetOrDownloadAsync()).Id;
             IMessage botMessage = GetExistingBotReplyOrNull(messageId);
             if (botMessage is IUserMessage botMsg)
             {
