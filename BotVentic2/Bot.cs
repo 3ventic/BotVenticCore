@@ -23,6 +23,8 @@ namespace BotVentic2
         private List<EmoteInfo> _emotes = new List<EmoteInfo>();
         private string _bttvTemplate = "";
 
+        private Timer _timer;
+
         private EmbedAuthorBuilder _embedAuthor = new EmbedAuthorBuilder()
         {
             IconUrl = "https://i.3v.fi/raw/3logo.png",
@@ -37,7 +39,7 @@ namespace BotVentic2
             _token = token;
             _clientid = clientid;
 
-            var timer = new Timer(async _ =>
+            _timer = new Timer(async _ =>
             {
                 Console.WriteLine("Updating emotes");
                 await UpdateTwitchEmotesAsync(_emotes);
