@@ -42,9 +42,11 @@ namespace BotVentic2
             _timer = new Timer(async _ =>
             {
                 Console.WriteLine("Updating emotes");
-                await UpdateTwitchEmotesAsync(_emotes);
-                await UpdateBttvEmotesAsync(_emotes);
-                await UpdateFFZEmotesAsync(_emotes);
+                List<EmoteInfo> emotes = new List<EmoteInfo>();
+                await UpdateTwitchEmotesAsync(emotes);
+                await UpdateBttvEmotesAsync(emotes);
+                await UpdateFFZEmotesAsync(emotes);
+                _emotes = emotes;
                 Console.WriteLine("Updated emotes");
                 if (_client.ConnectionState == ConnectionState.Connected)
                 {
