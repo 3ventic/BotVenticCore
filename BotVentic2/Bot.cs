@@ -25,6 +25,12 @@ namespace BotVentic2
 
         private Timer _timer;
 
+        private volatile int _commandsUsed = 0;
+        private volatile int _emotesUsed = 0;
+        private long _messagesReceived;
+        private object _messageLock = new object();
+
+
         private EmbedAuthorBuilder _embedAuthor = new EmbedAuthorBuilder()
         {
             IconUrl = "https://i.3v.fi/raw/3logo.png",
@@ -115,6 +121,10 @@ namespace BotVentic2
         {
             if (!message.Author.IsBot)
             {
+                lock (_messageLock)
+                {
+                    _messagesReceived += 1;
+                }
                 Console.WriteLine($"[Receive] [{message.Channel.Id}:{message.Channel.Name}] <{message.Author.Id}> {message.Author.Username}: {message.Content}");
                 if (message.Channel.Name[0] == '@')
                 {
@@ -272,6 +282,7 @@ namespace BotVentic2
 
         private string GetEmoteUrl(EmoteInfo emote_info)
         {
+            _emotesUsed += 1;
             string reply = "";
             switch (emote_info.Type)
             {
@@ -299,6 +310,7 @@ namespace BotVentic2
             switch (words[0])
             {
                 case "!stream":
+                    _commandsUsed += 1;
                     if (words.Length > 1)
                     {
                         string json = await Program.RequestAsync("https://api.twitch.tv/kraken/streams/" + words[1].ToLower() + "?stream_type=all", true);
@@ -340,6 +352,7 @@ namespace BotVentic2
                     }
                     break;
                 case "!channel":
+                    _commandsUsed += 1;
                     if (words.Length > 1)
                     {
                         string json = await Program.RequestAsync("https://api.twitch.tv/kraken/channels/" + words[1].ToLower(), true);
@@ -367,6 +380,7 @@ namespace BotVentic2
                     }
                     break;
                 case "!source":
+                    _commandsUsed += 1;
                     reply = "https://github.com/3ventic/BotVenticCore";
                     break;
                 case "!frozen":
@@ -375,12 +389,21 @@ namespace BotVentic2
                     // Fall through to frozenpizza
                     goto case "!frozenpizza";
                 case "!frozenpizza":
+                    _commandsUsed += 1;
                     reply = "*starts making a frozen pizza*";
                     break;
                 case "!bot":
+                    _commandsUsed += 1;
                     int users = 0;
+                    int channels = 0;
+                    long messages;
+                    lock (_messageLock)
+                    {
+                        messages = _messagesReceived;
+                    }
                     foreach (var server in _client.Guilds)
                     {
+                        channels += server.Channels.Count;
                         users += server.MemberCount;
                     }
                     try
@@ -394,7 +417,11 @@ namespace BotVentic2
                             new string[] { "RAM Usage Paged", $"{Math.Ceiling(botProcess.PagedMemorySize64 / 1024.0)} KB" },
                             new string[] { "Uptime", $"{(DateTime.UtcNow - _startedAt).ToString(@"d\ \d\a\y\s\,\ h\ \h\o\u\r\s")}" },
                             new string[] { "Users", users.ToString() },
-                            new string[] { "Guilds", _client.Guilds.Count.ToString() }
+                            new string[] { "Channels", channels.ToString() },
+                            new string[] { "Guilds", _client.Guilds.Count.ToString() },
+                            new string[] { "Messages Received", messages.ToString() },
+                            new string[] { "Commands Received", _commandsUsed.ToString() },
+                            new string[] { "Emotes Used", _emotesUsed.ToString() }
                         });
                     }
                     catch (Exception ex) when (ex is ArgumentNullException || ex is OverflowException || ex is PlatformNotSupportedException)
@@ -404,6 +431,7 @@ namespace BotVentic2
                     }
                     break;
                 case "!foodporn":
+                    _commandsUsed += 1;
                     try
                     {
                         var rnd = new Random();
