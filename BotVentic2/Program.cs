@@ -6,15 +6,17 @@ class Program
 {
     static void Main(string[] args)
     {
-        if (args.Length < 2)
+        string token = Environment.GetEnvironmentVariable("TOKEN");
+        string clientid = Environment.GetEnvironmentVariable("CLIENT_ID");
+        if (string.IsNullOrEmpty(token))
         {
-            Console.WriteLine("Required arguments: [bot token] [client id]");
+            Console.WriteLine("Required environment variable TOKEN missing.");
         }
         else
         {
             Console.WriteLine($"Starting... Ctrl+C to stop");
 
-            var bot = new BotVentic2.Bot(args[0], args[1]);
+            var bot = new BotVentic2.Bot(token, clientid);
 
             Console.CancelKeyPress += (object sender, ConsoleCancelEventArgs e) =>
             {
