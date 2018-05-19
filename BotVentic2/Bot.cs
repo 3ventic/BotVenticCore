@@ -8,11 +8,14 @@ using Newtonsoft.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Discord.Rest;
+using System.Linq;
 
 namespace BotVentic2
 {
     class Bot
     {
+        public static readonly string MathQueryURL = Environment.GetEnvironmentVariable("MATHAPI_URL");
+
         private readonly DateTime _startedAt = DateTime.UtcNow;
         private DiscordSocketClient _client;
         private string _token, _clientid;
@@ -411,6 +414,26 @@ namespace BotVentic2
                     _commandsUsed += 1;
                     reply = "*starts making a frozen pizza*";
                     break;
+                case "!math":
+                    _commandsUsed += 1;
+                    if (!string.IsNullOrEmpty(MathQueryURL))
+                    {
+                        string json = await Program.RequestAsync($"{MathQueryURL}?q={Uri.EscapeDataString(string.Join(' ', words.Skip(1)))}");
+                        if (json != null)
+                        {
+                            Json.MathQuery result = JsonConvert.DeserializeObject<Json.MathQuery>(json);
+                            reply = $"({result.Status}): {result.Response}";
+                        }
+                        else
+                        {
+                            reply = "There was an error with the request.";
+                        }
+                    }
+                    else
+                    {
+                        reply = "The bot is misconfigured and missing the math API endpoint. Sorry!";
+                    }
+                    break;
                 case "!bot":
                     _commandsUsed += 1;
                     int users = 0;
@@ -428,7 +451,7 @@ namespace BotVentic2
                     try
                     {
                         var botProcess = System.Diagnostics.Process.GetCurrentProcess();
-                        reply = "Available commands: `!bot` `!frozen pizza` `!foodporn` `!source` `!stream <Twitch channel name>` `!channel <Twitch channel name>`";
+                        reply = "Available commands: `!bot` `!frozen pizza` `!foodporn` `!source` `!stream <Twitch channel name>` `!channel <Twitch channel name>` `!math <query>`";
                         eReply = CreateEmbedWithFields(_embedAuthor, color: Colors.Blue, fields: new string[][]
                         {
                             new string[] { "RAM Usage GC", $"{Math.Ceiling(GC.GetTotalMemory(false) / 1024.0)} KB" },

@@ -30,12 +30,21 @@ class Program
         }
     }
 
+    private static HttpClientHandler httpHandler = new HttpClientHandler()
+    {
+        AllowAutoRedirect = true,
+        MaxAutomaticRedirections = 3,
+        MaxConnectionsPerServer = 100,
+        UseCookies = false,
+        UseProxy = false
+    };
+
     internal static async Task<string> RequestAsync(string uri, bool includeClientId = false)
     {
         string result = "";
         try
         {
-            using (var client = new HttpClient())
+            using (var client = new HttpClient(httpHandler, false))
             {
                 if (includeClientId)
                 {
