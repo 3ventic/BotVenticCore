@@ -115,14 +115,14 @@ namespace BotVentic2
                     IMessage botMessage = GetExistingBotReplyOrNull(message.Id);
                     if (botMessage == null)
                     {
-                        await SendReplyAsync(message, reply, eReply.Build());
+                        await SendReplyAsync(message, reply, eReply?.Build());
                     }
                     else if (botMessage is IUserMessage botMsg)
                     {
                         await botMsg.ModifyAsync((msgProps) =>
                         {
                             msgProps.Content = reply;
-                            msgProps.Embed = eReply.Build();
+                            msgProps.Embed = eReply?.Build();
                         });
                     }
                 }
@@ -163,7 +163,7 @@ namespace BotVentic2
 
                     if (reply != null || eReply != null)
                     {
-                        await SendReplyAsync(message, reply, eReply.Build());
+                        await SendReplyAsync(message, reply, eReply?.Build());
                     }
                 }
             }
@@ -376,7 +376,7 @@ namespace BotVentic2
                     try
                     {
                         var botProcess = System.Diagnostics.Process.GetCurrentProcess();
-                        reply = "Source & Information: https://github.com/3ventic/BotVenticCore\nAvailable commands: `!bot` `!frozen pizza` `!foodporn` `!math <query>`";
+                        reply = "Source & Information: <https://github.com/3ventic/BotVenticCore>\nAvailable commands: `!bot` `!frozen pizza` `!math <query>`\nPull emotes by typing :emotecode: or #EmoteCode";
                         eReply = CreateEmbedWithFields(_embedAuthor, color: Colors.Blue, fields: new string[][]
                         {
                             new string[] { "RAM Usage GC", $"{Math.Ceiling(GC.GetTotalMemory(false) / 1024.0)} KB" },
@@ -394,24 +394,6 @@ namespace BotVentic2
                     catch (Exception ex) when (ex is ArgumentNullException || ex is OverflowException || ex is PlatformNotSupportedException)
                     {
                         reply = $"Error: {ex.Message}";
-                        Console.WriteLine(ex.ToString());
-                    }
-                    break;
-                case "!foodporn":
-                    _commandsUsed += 1;
-                    try
-                    {
-                        var rnd = new Random();
-                        int page = rnd.Next(1, 10);
-                        string downloadString = await Program.RequestAsync($"http://foodporndaily.com/explore/food/page/{page}/");
-                        string regexImgSrc = @"<img[^>]*?src\s*=\s*[""']?([^'"" >]+?)[ '""][^>]*?>";
-                        MatchCollection matchesImgSrc = Regex.Matches(downloadString, regexImgSrc, RegexOptions.IgnoreCase | RegexOptions.Singleline);
-                        int image = rnd.Next(1, matchesImgSrc.Count);
-                        reply = matchesImgSrc[image].Groups[1].Value;
-                    }
-                    catch (Exception ex)
-                    {
-                        reply = $"Could not get the foodporn image. Error: {ex.Message }";
                         Console.WriteLine(ex.ToString());
                     }
                     break;
