@@ -30,7 +30,7 @@ class Program
         }
     }
 
-    private static HttpClientHandler httpHandler = new HttpClientHandler()
+    private static readonly HttpClientHandler httpHandler = new HttpClientHandler()
     {
         AllowAutoRedirect = true,
         MaxAutomaticRedirections = 3,
@@ -44,16 +44,14 @@ class Program
         string result = "";
         try
         {
-            using (var client = new HttpClient(httpHandler, false))
+            using var client = new HttpClient(httpHandler, false);
+            if (includeClientId)
             {
-                if (includeClientId)
-                {
-                    client.DefaultRequestHeaders.Add("Client-ID", "4wck2d3bifbikv779pnez14jujeyash");
-                    client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.twitchtv.v5+json");
-                }
-                client.Timeout = TimeSpan.FromSeconds(60);
-                result = await client.GetStringAsync(uri);
+                client.DefaultRequestHeaders.Add("Client-ID", "4wck2d3bifbikv779pnez14jujeyash");
+                client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.twitchtv.v5+json");
             }
+            client.Timeout = TimeSpan.FromSeconds(60);
+            result = await client.GetStringAsync(uri);
         }
         catch (Exception ex)
         {

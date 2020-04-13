@@ -18,23 +18,24 @@ namespace BotVentic2
 
         private readonly DateTime _startedAt = DateTime.UtcNow;
         private DiscordSocketClient _client;
-        private string _token, _clientid;
-
-        private ConcurrentDictionary<ulong, ulong> _lastHandledMessageOnChannel = new ConcurrentDictionary<ulong, ulong>();
-        private ConcurrentQueue<IMessage[]> _botReplies = new ConcurrentQueue<IMessage[]>();
+        private readonly string _token;
+        private readonly string _clientid;
+        private readonly ConcurrentDictionary<ulong, ulong> _lastHandledMessageOnChannel = new ConcurrentDictionary<ulong, ulong>();
+        private readonly ConcurrentQueue<IMessage[]> _botReplies = new ConcurrentQueue<IMessage[]>();
 
         private List<EmoteInfo> _emotes = new List<EmoteInfo>();
         private string _bttvTemplate = "";
 
-        private Timer _timer;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Code Quality", "IDE0052:Remove unread private members", Justification = "Scoped here as readonly to prevent GC")]
+        private readonly Timer _timer;
 
         private volatile int _commandsUsed = 0;
         private volatile int _emotesUsed = 0;
         private long _messagesReceived;
-        private object _messageLock = new object();
+        private readonly object _messageLock = new object();
 
 
-        private EmbedAuthorBuilder _embedAuthor = new EmbedAuthorBuilder()
+        private readonly EmbedAuthorBuilder _embedAuthor = new EmbedAuthorBuilder()
         {
             IconUrl = "https://i.3v.fi/raw/3logo.png",
             Name = "3v.fi",
@@ -51,7 +52,7 @@ namespace BotVentic2
             _timer = new Timer(async _ =>
             {
                 Console.WriteLine("Updating emotes");
-                List<EmoteInfo> emotes = new List<EmoteInfo>();
+                var emotes = new List<EmoteInfo>();
                 await UpdateTwitchEmotesAsync(emotes);
                 await UpdateBttvEmotesAsync(emotes);
                 await UpdateFFZEmotesAsync(emotes);
@@ -71,22 +72,22 @@ namespace BotVentic2
             _client.MessageReceived += Client_MessageReceivedAsync;
             _client.MessageUpdated += Client_MessageUpdatedAsync;
             _client.MessageDeleted += Client_MessageDeletedAsync;
-            _client.LoggedOut += _client_LoggedOut;
-            _client.Disconnected += _client_Disconnected;
+            _client.LoggedOut += Client_LoggedOut;
+            _client.Disconnected += Client_Disconnected;
 
             await _client.LoginAsync(TokenType.Bot, _token);
             await _client.StartAsync();
             await Task.Delay(-1);
         }
 
-        private Task _client_Disconnected(Exception arg)
+        private Task Client_Disconnected(Exception arg)
         {
             Console.WriteLine($"Disconnected due to {arg}");
             Environment.Exit(2);
             return Task.CompletedTask;
         }
 
-        private Task _client_LoggedOut()
+        private Task Client_LoggedOut()
         {
             Console.WriteLine("Logged out.");
 
@@ -104,7 +105,7 @@ namespace BotVentic2
             {
                 Console.WriteLine($"[Modify] [{message.Channel.Id}:{message.Channel.Name}] <{message.Author.Id}> {message.Author.Username}: {message.Content}");
                 string[] words = message.Content.Split(' ');
-                (string reply, Embed eReply) = await HandleCommandsAsync(words);
+                (string reply, EmbedBuilder eReply) = await HandleCommandsAsync(words);
                 if (reply == null && eReply == null)
                 {
                     (reply, eReply) = HandleEmotesAndConversions(words);
@@ -115,14 +116,14 @@ namespace BotVentic2
                     IMessage botMessage = GetExistingBotReplyOrNull(message.Id);
                     if (botMessage == null)
                     {
-                        await SendReplyAsync(message, reply, eReply);
+                        await SendReplyAsync(message, reply, eReply.Build());
                     }
                     else if (botMessage is IUserMessage botMsg)
                     {
                         await botMsg.ModifyAsync((msgProps) =>
                         {
                             msgProps.Content = reply;
-                            msgProps.Embed = eReply;
+                            msgProps.Embed = eReply.Build();
                         });
                     }
                 }
@@ -156,7 +157,7 @@ namespace BotVentic2
                 else
                 {
                     string[] words = message.Content.Split(' ');
-                    (string reply, Embed eReply) = await HandleCommandsAsync(words);
+                    (string reply, EmbedBuilder eReply) = await HandleCommandsAsync(words);
                     if (reply == null && eReply == null)
                     {
                         (reply, eReply) = HandleEmotesAndConversions(words);
@@ -164,7 +165,7 @@ namespace BotVentic2
 
                     if (reply != null || eReply != null)
                     {
-                        await SendReplyAsync(message, reply, eReply);
+                        await SendReplyAsync(message, reply, eReply.Build());
                     }
                 }
             }
@@ -185,22 +186,22 @@ namespace BotVentic2
             }
         }
 
-        private (string, Embed) HandleEmotesAndConversions(string[] words)
+        private (string, EmbedBuilder) HandleEmotesAndConversions(string[] words)
         {
             string reply = null;
-            Embed eReply = null;
+            EmbedBuilder eReply = null;
             for (int i = words.Length - 1; i >= 0; --i)
             {
                 string word = words[i];
                 bool found = false;
                 if (word.StartsWith("#"))
                 {
-                    string code = word.Substring(1, word.Length - 1);
+                    string code = word[1..];
                     (found, eReply) = IsWordEmote(code);
                 }
                 else if (word.StartsWith(":") && word.EndsWith(":") && word.Length > 2)
                 {
-                    string code = word.Substring(1, word.Length - 2);
+                    string code = word[1..^1];
                     (found, eReply) = IsWordEmote(code, false);
                 }
                 if (found)
@@ -241,14 +242,14 @@ namespace BotVentic2
         }
 
 
-        private (bool, Embed) IsWordEmote(string code, bool caseSensitive = true)
+        private (bool, EmbedBuilder) IsWordEmote(string code, bool caseSensitive = true)
         {
-            Func<string, string, bool> emoteComparer = (first, second) => { return caseSensitive ? (first == second) : (first.ToLower() == second.ToLower()); };
+            bool emoteComparer(string first, string second) { return caseSensitive ? (first == second) : (first.ToLower() == second.ToLower()); }
             bool found = false;
             int emoteset = -2;
-            Embed eReply = null;
+            EmbedBuilder eReply = null;
 
-            foreach (var emote in _emotes)
+            foreach (EmoteInfo emote in _emotes)
             {
                 if (emote.Code == code)
                 {
@@ -274,7 +275,7 @@ namespace BotVentic2
             }
             if (!found)
             {
-                foreach (var emote in _emotes)
+                foreach (EmoteInfo emote in _emotes)
                 {
                     if (emoteComparer(code, emote.Code))
                     {
@@ -322,13 +323,13 @@ namespace BotVentic2
             return reply;
         }
 
-        private async Task<(string, Embed)> HandleCommandsAsync(string[] words)
+        private async Task<(string, EmbedBuilder)> HandleCommandsAsync(string[] words)
         {
             if (words == null || words.Length < 0)
                 return ("An error occurred.", null);
 
             string reply = null;
-            Embed eReply = null;
+            EmbedBuilder eReply = null;
             switch (words[0])
             {
                 case "!stream":
@@ -338,7 +339,7 @@ namespace BotVentic2
                         string json = await Program.RequestAsync("https://api.twitch.tv/kraken/streams/" + words[1].ToLower() + "?stream_type=all", true);
                         if (json != null)
                         {
-                            var streams = JsonConvert.DeserializeObject<Json.Streams>(json);
+                            Json.Streams streams = JsonConvert.DeserializeObject<Json.Streams>(json);
                             if (streams != null)
                             {
                                 if (streams.Stream == null)
@@ -353,7 +354,7 @@ namespace BotVentic2
                                 else
                                 {
                                     long ticks = DateTime.UtcNow.Ticks - streams.Stream.CreatedAt.Ticks;
-                                    TimeSpan ts = new TimeSpan(ticks);
+                                    var ts = new TimeSpan(ticks);
                                     string name = streams.Stream.Channel.DisplayName ?? words[1];
                                     eReply = CreateEmbedWithFields(new EmbedAuthorBuilder() { IconUrl = streams.Stream.Channel.Logo, Name = name, Url = streams.Stream.Channel.Url }, color: Colors.Green, fields: new string[][] {
                                         new string[] { "Name", name },
@@ -380,7 +381,7 @@ namespace BotVentic2
                         string json = await Program.RequestAsync("https://api.twitch.tv/kraken/channels/" + words[1].ToLower(), true);
                         if (json != null)
                         {
-                            var channel = JsonConvert.DeserializeObject<Json.Channel>(json);
+                            Json.Channel channel = JsonConvert.DeserializeObject<Json.Channel>(json);
                             if (channel != null && channel.DisplayName != null)
                             {
                                 var registeredFor = new TimeSpan(DateTime.UtcNow.Ticks - channel.Registered.Ticks);
@@ -443,7 +444,7 @@ namespace BotVentic2
                     {
                         messages = _messagesReceived;
                     }
-                    foreach (var server in _client.Guilds)
+                    foreach (SocketGuild server in _client.Guilds)
                     {
                         channels += server.Channels.Count;
                         users += server.MemberCount;
@@ -480,7 +481,7 @@ namespace BotVentic2
                         int page = rnd.Next(1, 10);
                         string downloadString = await Program.RequestAsync($"http://foodporndaily.com/explore/food/page/{page}/");
                         string regexImgSrc = @"<img[^>]*?src\s*=\s*[""']?([^'"" >]+?)[ '""][^>]*?>";
-                        var matchesImgSrc = Regex.Matches(downloadString, regexImgSrc, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                        MatchCollection matchesImgSrc = Regex.Matches(downloadString, regexImgSrc, RegexOptions.IgnoreCase | RegexOptions.Singleline);
                         int image = rnd.Next(1, matchesImgSrc.Count);
                         reply = matchesImgSrc[image].Groups[1].Value;
                     }
@@ -501,7 +502,7 @@ namespace BotVentic2
         {
             while (_botReplies.Count > _lastHandledMessageOnChannel.Count * 2)
             {
-                _botReplies.TryDequeue(out IMessage[] throwaway);
+                _botReplies.TryDequeue(out _);
             }
             _botReplies.Enqueue(new IMessage[] { bot, user });
         }
@@ -514,7 +515,7 @@ namespace BotVentic2
 
         private IMessage GetExistingBotReplyOrNull(ulong id)
         {
-            foreach (var item in _botReplies)
+            foreach (IMessage[] item in _botReplies)
             {
                 if (item[(int)MessageIndex.UserMessage].Id == id)
                 {
@@ -529,7 +530,7 @@ namespace BotVentic2
         /// </summary>
         private async Task UpdateTwitchEmotesAsync(List<EmoteInfo> e)
         {
-            var emotes = JsonConvert.DeserializeObject<Json.EmoticonImages>(await Program.RequestAsync("https://api.twitch.tv/kraken/chat/emoticon_images", true));
+            Json.EmoticonImages emotes = JsonConvert.DeserializeObject<Json.EmoticonImages>(await Program.RequestAsync("https://api.twitch.tv/kraken/chat/emoticon_images", true));
 
             if (emotes == null || emotes.Emotes == null)
             {
@@ -559,7 +560,7 @@ namespace BotVentic2
                 return aSet - bSet;
             });
 
-            foreach (var em in emotes.Emotes)
+            foreach (Json.Emoticon em in emotes.Emotes)
             {
                 e.Add(new EmoteInfo(em.Id, em.Code, EmoteType.Twitch, em.Set ?? 0));
             }
@@ -570,7 +571,7 @@ namespace BotVentic2
         /// </summary>
         private async Task UpdateBttvEmotesAsync(List<EmoteInfo> e)
         {
-            var emotes = JsonConvert.DeserializeObject<Json.BttvEmoticonImages>(await Program.RequestAsync("https://api.betterttv.net/2/emotes"));
+            Json.BttvEmoticonImages emotes = JsonConvert.DeserializeObject<Json.BttvEmoticonImages>(await Program.RequestAsync("https://api.betterttv.net/2/emotes"));
 
             if (emotes == null || emotes.Template == null || emotes.Emotes == null)
             {
@@ -580,7 +581,7 @@ namespace BotVentic2
 
             _bttvTemplate = emotes.Template;
 
-            foreach (var em in emotes.Emotes)
+            foreach (Json.BttvEmoticon em in emotes.Emotes)
             {
                 e.Add(new EmoteInfo(em.Id, em.Code, EmoteType.Bttv));
             }
@@ -592,7 +593,7 @@ namespace BotVentic2
         /// </summary>
         private async Task UpdateFFZEmotesAsync(List<EmoteInfo> e)
         {
-            var emotes = JsonConvert.DeserializeObject<Json.FFZEmoticonSets>(await Program.RequestAsync("http://api.frankerfacez.com/v1/set/global"));
+            Json.FFZEmoticonSets emotes = JsonConvert.DeserializeObject<Json.FFZEmoticonSets>(await Program.RequestAsync("http://api.frankerfacez.com/v1/set/global"));
 
             if (emotes == null || emotes.Sets == null || emotes.Sets.Values == null)
             {
@@ -604,7 +605,7 @@ namespace BotVentic2
             {
                 if (set != null && set.Emotes != null)
                 {
-                    foreach (var em in set.Emotes)
+                    foreach (Json.FFZEmoticon em in set.Emotes)
                     {
                         e.Add(new EmoteInfo(em.Id, em.Code, EmoteType.Ffz));
                     }
@@ -612,7 +613,7 @@ namespace BotVentic2
             }
         }
 
-        private Embed CreateEmbedWithFields(EmbedAuthorBuilder author = null, string imageUrl = null, Color color = default(Color), params string[][] fields)
+        private EmbedBuilder CreateEmbedWithFields(EmbedAuthorBuilder author = null, string imageUrl = null, Color color = default, params string[][] fields)
         {
             var e = new EmbedBuilder()
             {
@@ -620,7 +621,7 @@ namespace BotVentic2
                 ImageUrl = imageUrl,
                 Color = color
             };
-            foreach (var fieldcells in fields)
+            foreach (string[] fieldcells in fields)
             {
                 e.AddField(field =>
                 {
@@ -629,7 +630,7 @@ namespace BotVentic2
                     field.IsInline = true;
                 });
             }
-            return e.Build();
+            return e;
         }
 
         private bool IsMessageLastRepliedTo(ulong channelId, ulong messageId) => _lastHandledMessageOnChannel.TryGetValue(channelId, out ulong lastMessageId) && lastMessageId == messageId;
