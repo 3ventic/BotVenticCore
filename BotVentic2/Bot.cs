@@ -332,80 +332,6 @@ namespace BotVentic2
             EmbedBuilder eReply = null;
             switch (words[0])
             {
-                case "!stream":
-                    _commandsUsed += 1;
-                    if (words.Length > 1)
-                    {
-                        string json = await Program.RequestAsync("https://api.twitch.tv/kraken/streams/" + words[1].ToLower() + "?stream_type=all", true);
-                        if (json != null)
-                        {
-                            Json.Streams streams = JsonConvert.DeserializeObject<Json.Streams>(json);
-                            if (streams != null)
-                            {
-                                if (streams.Stream == null)
-                                {
-                                    eReply = new EmbedBuilder()
-                                    {
-                                        Title = Regex.Split(words[1], @"\W")[0],
-                                        Description = "*Offline*",
-                                        Color = Colors.Red
-                                    };
-                                }
-                                else
-                                {
-                                    long ticks = DateTime.UtcNow.Ticks - streams.Stream.CreatedAt.Ticks;
-                                    var ts = new TimeSpan(ticks);
-                                    string name = streams.Stream.Channel.DisplayName ?? words[1];
-                                    eReply = CreateEmbedWithFields(new EmbedAuthorBuilder() { IconUrl = streams.Stream.Channel.Logo, Name = name, Url = streams.Stream.Channel.Url }, color: Colors.Green, fields: new string[][] {
-                                        new string[] { "Name", name },
-                                        new string[] { "Partner", streams.Stream.Channel.IsPartner ? ":white_check_mark:" : ":white_large_square:" },
-                                        new string[] { "Title", streams.Stream.Channel.Status ?? "" },
-                                        new string[] { "Game", streams.Stream.Game ?? "" },
-                                        new string[] { "Viewers", streams.Stream.Viewers.ToString() },
-                                        new string[] { "Quality", streams.Stream.VideoHeight + "p" + Math.Round(streams.Stream.FramesPerSecond) },
-                                        new string[] { "Uptime", ts.ToString(@"d' day" + (ts.Days == 1 ? "" : "s") + @" 'hh\:mm\:ss") }
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        reply = "**Usage:** !stream channel";
-                    }
-                    break;
-                case "!channel":
-                    _commandsUsed += 1;
-                    if (words.Length > 1)
-                    {
-                        string json = await Program.RequestAsync("https://api.twitch.tv/kraken/channels/" + words[1].ToLower(), true);
-                        if (json != null)
-                        {
-                            Json.Channel channel = JsonConvert.DeserializeObject<Json.Channel>(json);
-                            if (channel != null && channel.DisplayName != null)
-                            {
-                                var registeredFor = new TimeSpan(DateTime.UtcNow.Ticks - channel.Registered.Ticks);
-                                int years = (int)registeredFor.TotalDays / 365;
-                                int days = (int)registeredFor.TotalDays % 365;
-                                eReply = CreateEmbedWithFields(new EmbedAuthorBuilder() { IconUrl = channel.Logo, Name = channel.DisplayName ?? words[1], Url = channel.Url }, color: Colors.Blue, fields: new string[][]
-                                {
-                                    new string[] { "Partner", channel.IsPartner ? ":white_check_mark:" : ":white_large_square:" },
-                                    new string[] { "Title", channel.Status ?? "" },
-                                    new string[] { "Registered", $"{channel.Registered:yyyy-MM-dd HH:mm} UTC; {(years > 0 ? years + " years, " : "")}{days} days ago" },
-                                    new string[] { "Followers", channel.Followers.ToString() }
-                                });
-                            }
-                        }
-                    }
-                    else
-                    {
-                        reply = "**Usage:** !channel channel";
-                    }
-                    break;
-                case "!source":
-                    _commandsUsed += 1;
-                    reply = "https://github.com/3ventic/BotVenticCore";
-                    break;
                 case "!frozen":
                     if (words.Length >= 2 && words[1] != "pizza")
                         break;
@@ -452,7 +378,7 @@ namespace BotVentic2
                     try
                     {
                         var botProcess = System.Diagnostics.Process.GetCurrentProcess();
-                        reply = "Available commands: `!bot` `!frozen pizza` `!foodporn` `!source` `!stream <Twitch channel name>` `!channel <Twitch channel name>` `!math <query>`";
+                        reply = "Source & Information: https://github.com/3ventic/BotVenticCore\nAvailable commands: `!bot` `!frozen pizza` `!foodporn` `!math <query>`";
                         eReply = CreateEmbedWithFields(_embedAuthor, color: Colors.Blue, fields: new string[][]
                         {
                             new string[] { "RAM Usage GC", $"{Math.Ceiling(GC.GetTotalMemory(false) / 1024.0)} KB" },
