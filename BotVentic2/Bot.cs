@@ -103,7 +103,6 @@ namespace BotVentic2
         {
             if (!message.Author.IsBot && message.Channel.Name[0] != '@')
             {
-                Console.WriteLine($"[Modify] [{message.Channel.Id}:{message.Channel.Name}] <{message.Author.Id}> {message.Author.Username}: {message.Content}");
                 string[] words = message.Content.Split(' ');
                 (string reply, EmbedBuilder eReply) = await HandleCommandsAsync(words);
                 if (reply == null && eReply == null)
@@ -148,7 +147,6 @@ namespace BotVentic2
                 {
                     _messagesReceived += 1;
                 }
-                Console.WriteLine($"[Receive] [{message.Channel.Id}:{message.Channel.Name}] <{message.Author.Id}> {message.Author.Username}: {message.Content}");
                 if (message.Channel.Name[0] == '@')
                 {
                     // Private message
