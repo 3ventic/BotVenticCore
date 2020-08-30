@@ -68,11 +68,14 @@ namespace BotVentic2
             // sends botstatus to a channel on a timer
             _keepalive = new Timer(async _ =>
             {
-                RestApplication info = await _client.GetApplicationInfoAsync();
-                string[][] stats = BotStats();
-                foreach(string[] stat in stats)
+                if (_client != default(DiscordSocketClient) && _client.ConnectionState != ConnectionState.Disconnected)
                 {
-                    Console.WriteLine($"{stat[0]} => {stat[1]}");
+                    RestApplication info = await _client.GetApplicationInfoAsync();
+                    string[][] stats = BotStats();
+                    foreach(string[] stat in stats)
+                    {
+                        Console.WriteLine($"{stat[0]} => {stat[1]}");
+                    }
                 }
             }, null, 0, 60000);
         }
