@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using Discord;
 using System.Collections.Concurrent;
 using Newtonsoft.Json;
-using System.Text.RegularExpressions;
 using System.Threading;
 using Discord.Rest;
 using System.Linq;
+using System.Diagnostics;
 
 namespace BotVentic2
 {
@@ -28,6 +28,7 @@ namespace BotVentic2
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Code Quality", "IDE0052:Remove unread private members", Justification = "Scoped here as readonly to prevent GC")]
         private readonly Timer _timer;
+        private readonly Timer _keepalive;
 
         private volatile int _commandsUsed = 0;
         private volatile int _emotesUsed = 0;
@@ -63,6 +64,17 @@ namespace BotVentic2
                     await _client.SetGameAsync("3v.fi/l/botventic");
                 }
             }, null, 0, 3600000);
+
+            // sends botstatus to a channel on a timer
+            _keepalive = new Timer(async _ =>
+            {
+                RestApplication info = await _client.GetApplicationInfoAsync();
+                string[][] stats = BotStats();
+                foreach(string[] stat in stats)
+                {
+                    Console.WriteLine($"{stat[0]} => {stat[1]}");
+                }
+            }, null, 0, 60000);
         }
 
         internal async Task RunAsync()
@@ -83,7 +95,7 @@ namespace BotVentic2
         private Task Client_Disconnected(Exception arg)
         {
             Console.WriteLine($"Disconnected due to {arg}");
-            Environment.Exit(2);
+            Process.GetCurrentProcess().Kill(true);
             return Task.CompletedTask;
         }
 
@@ -375,21 +387,8 @@ namespace BotVentic2
                     }
                     try
                     {
-                        var botProcess = System.Diagnostics.Process.GetCurrentProcess();
                         reply = "Source & Information: <https://github.com/3ventic/BotVenticCore>\nAvailable commands: `!bot` `!frozen pizza` `!math <query>`\nPull emotes by typing :emotecode: or #EmoteCode";
-                        eReply = CreateEmbedWithFields(_embedAuthor, color: Colors.Blue, fields: new string[][]
-                        {
-                            new string[] { "RAM Usage GC", $"{Math.Ceiling(GC.GetTotalMemory(false) / 1024.0)} KB" },
-                            new string[] { "RAM Usage Working Set", $"{Math.Ceiling(botProcess.WorkingSet64 / 1024.0)} KB" },
-                            new string[] { "RAM Usage Paged", $"{Math.Ceiling(botProcess.PagedMemorySize64 / 1024.0)} KB" },
-                            new string[] { "Uptime", $"{(DateTime.UtcNow - _startedAt).ToString(@"d\ \d\a\y\s\,\ h\ \h\o\u\r\s")}" },
-                            new string[] { "Users", users.ToString() },
-                            new string[] { "Channels", channels.ToString() },
-                            new string[] { "Guilds", _client.Guilds.Count.ToString() },
-                            new string[] { "Messages Received", messages.ToString() },
-                            new string[] { "Commands Received", _commandsUsed.ToString() },
-                            new string[] { "Emotes Used", _emotesUsed.ToString() }
-                        });
+                        eReply = CreateEmbedWithFields(_embedAuthor, color: Colors.Blue, fields: BotStats());
                     }
                     catch (Exception ex) when (ex is ArgumentNullException || ex is OverflowException || ex is PlatformNotSupportedException)
                     {
@@ -402,6 +401,34 @@ namespace BotVentic2
             }
 
             return (reply, eReply);
+        }
+
+        private string[][] BotStats() {
+            int users = 0;
+            int channels = 0;
+            long messages;
+            lock (_messageLock)
+            {
+                messages = _messagesReceived;
+            }
+            foreach (SocketGuild server in _client.Guilds)
+            {
+                channels += server.Channels.Count;
+                users += server.MemberCount;
+            }
+            Process botProcess = Process.GetCurrentProcess();
+            return new string[][] {
+                new string[] { "RAM Usage GC", $"{Math.Ceiling(GC.GetTotalMemory(false) / 1024.0)} KB" },
+                new string[] { "RAM Usage Working Set", $"{Math.Ceiling(botProcess.WorkingSet64 / 1024.0)} KB" },
+                new string[] { "RAM Usage Paged", $"{Math.Ceiling(botProcess.PagedMemorySize64 / 1024.0)} KB" },
+                new string[] { "Uptime", $"{DateTime.UtcNow - _startedAt:d\\ \\d\\a\\y\\s\\,\\ h\\ \\h\\o\\u\\r\\s}" },
+                new string[] { "Users", users.ToString() },
+                new string[] { "Channels", channels.ToString() },
+                new string[] { "Guilds", _client.Guilds.Count.ToString() },
+                new string[] { "Messages Received", messages.ToString() },
+                new string[] { "Commands Received", _commandsUsed.ToString() },
+                new string[] { "Emotes Used", _emotesUsed.ToString() }
+            };
         }
 
         private void AddBotReply(IUserMessage bot, SocketMessage user)
