@@ -89,16 +89,23 @@ namespace BotVentic2
             _client.MessageDeleted += Client_MessageDeletedAsync;
             _client.LoggedOut += Client_LoggedOut;
             _client.Disconnected += Client_Disconnected;
+            _client.LatencyUpdated += ClientOnLatencyUpdated;
 
             await _client.LoginAsync(TokenType.Bot, _token);
             await _client.StartAsync();
             await Task.Delay(-1);
         }
 
+        private Task ClientOnLatencyUpdated(int old, int newLatency)
+        {
+            Console.WriteLine($"Latency update: {old} => {newLatency}");
+            return Task.CompletedTask;
+        }
+
         private Task Client_Disconnected(Exception arg)
         {
             Console.WriteLine($"Disconnected due to {arg}");
-            Process.GetCurrentProcess().Kill(true);
+            Environment.Exit(2);
             return Task.CompletedTask;
         }
 
